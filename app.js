@@ -3,11 +3,10 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
-
-console.log(process.env.API_KEY);
 
 app.use(express.static("public"));
 app.set("view engine", "ejs");
@@ -17,7 +16,7 @@ app.use(
   })
 );
 
-mongoose.connect("mongodb://127.0.0.1:27017/userDB", { useNewUrlParser: true });
+mongoose.connect("mongodb://127.0.0.1:27017/userDB");
 
 const userSchema = new mongoose.Schema({
   email: String,
@@ -35,11 +34,13 @@ app.get("/login", function (req, res) {
 app.get("/register", function (req, res) {
   res.render("register");
 });
+
 app.post("/register", async function (req, res) {
   try {
+    const hash = bcrypt.hashSync(req.body.password, saltRounds);
     const newUser = new User({
       email: req.body.username,
-      password: md5(req.body.password),
+      password: hash,
     });
 
     await newUser.save();
@@ -52,14 +53,17 @@ app.post("/register", async function (req, res) {
 app.post("/login", async function (req, res) {
   try {
     const username = req.body.username;
-    const password = md5(req.body.password);
+    const password = req.body.password;
     const foundUser = await User.findOne({ email: username });
-
-    if (foundUser.password === password) {
+    const match = bcrypt.compareSync(password, foundUser.password);
+    console.log(match); 
+    if (match == false) {
+      res.status(400).send("Invalid Password");
+    } else {
       res.render("secrets");
     }
   } catch (err) {
-    console.log(err);
+    console.log("Error" + err);
   }
 });
 
